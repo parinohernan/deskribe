@@ -1,184 +1,241 @@
-# deskribe
-deskribe is a ia pryect to read images and get jsonfile
+# Deskribe - API de Procesamiento de Facturas con IA
 
+Deskribe es una API desarrollada con FastAPI que utiliza OCR (Tesseract) para extraer y procesar información de facturas y presupuestos, convirtiendo imágenes en datos estructurados en formato JSON.
 
-📌 1. Configuración Inicial del Proyecto (Entorno Virtual y Estructura)
-Objetivo: Crear una base sólida y organizada.
+## 🚀 Características
 
-1.1. Instalar Python y Herramientas
-Asegúrate de tener Python 3.9+ (recomendado para compatibilidad con librerías de IA).
+- **Procesamiento de imágenes**: Extrae texto de facturas y presupuestos usando OCR
+- **Estructuración de datos**: Convierte texto extraído en JSON estructurado
+- **Optimización de imágenes**: Redimensiona y optimiza imágenes para mejor rendimiento
+- **API REST**: Endpoint simple para procesar documentos
+- **Soporte multiidioma**: Español e inglés
 
-Instala pip (gestor de paquetes de Python) y venv (para entornos virtuales).
+## 📋 Requisitos Previos
 
-1.2. Crear Estructura de Carpetas
-text
-/proyecto_ia
-│
-├── /app                  # Código principal
-│   ├── /models           # Modelos de datos (Pydantic)
-│   ├── /services         # Lógica de negocio (procesamiento IA)
-│   ├── /routes           # Endpoints de la API
-│   ├── main.py           # Punto de entrada
-│
-├── /tests                # Pruebas automatizadas
-├── requirements.txt      # Dependencias
-├── .env                  # Variables de entorno
-├── Dockerfile            # Configuración para Docker
-└── README.md             # Documentación
-1.3. Crear y Activar Entorno Virtual
-bash
-python -m venv venv               # Crear entorno
-source venv/bin/activate          # Linux/Mac
-venv\Scripts\activate             # Windows
-📌 2. Instalar Dependencias
-Objetivo: Gestionar librerías de forma limpia.
+### Sistema Operativo
+- Linux (Ubuntu/Debian recomendado)
+- macOS
+- Windows (con WSL recomendado)
 
-2.1. Crear requirements.txt
-txt
-fastapi==0.95.2
-uvicorn==0.22.0
-python-multipart==0.0.6
-pillow==10.0.0
-torch==2.0.1
-transformers==4.30.0
-donut-python==1.0.0
-python-dotenv==1.0.0
-2.2. Instalar Dependencias
-bash
+### Dependencias del Sistema
+```bash
+# Ubuntu/Debian
+sudo apt update
+sudo apt install -y python3 python3-pip python3-venv
+sudo apt install -y tesseract-ocr tesseract-ocr-spa
+sudo apt install -y pkg-config libssl-dev
+sudo apt install -y rustc cargo
+
+# macOS
+brew install tesseract tesseract-lang
+brew install rust
+
+# Windows (con chocolatey)
+choco install tesseract
+```
+
+## 🛠️ Instalación
+
+### 1. Clonar el repositorio
+```bash
+git clone <url-del-repositorio>
+cd deskribe
+```
+
+### 2. Crear entorno virtual
+```bash
+python3 -m venv venv
+source venv/bin/activate  # Linux/macOS
+# o
+venv\Scripts\activate     # Windows
+```
+
+### 3. Instalar dependencias
+```bash
 pip install -r requirements.txt
-📌 3. Crear el Backend con FastAPI
-Objetivo: Construir una API REST bien estructurada.
+```
 
-3.1. Definir Modelos de Datos (app/models/document.py)
-python
-from pydantic import BaseModel
-from typing import Optional, List
+### 4. Verificar instalación
+```bash
+# Verificar Tesseract
+tesseract --version
 
-class ProcessingParams(BaseModel):
-    expected_vendor: Optional[str] = None
-    document_type: str  # "invoice" o "price_list"
-    language: str = "es"
+# Verificar Python y dependencias
+python -c "import pytesseract, PIL; print('Instalación correcta')"
+```
 
-class Article(BaseModel):
-    name: str
-    price: float
-    category: Optional[str] = None
+## 🚀 Uso
 
-class ProcessedDocument(BaseModel):
-    vendor: str
-    articles: List[Article]
-3.2. Crear Servicio de IA (app/services/ai_processor.py)
-python
-from donut import DonutModel
-import torch
-from PIL import Image
+### 1. Iniciar el servidor
+```bash
+# Activar entorno virtual
+source venv/bin/activate
 
-class DocumentProcessor:
-    def __init__(self):
-        self.model = DonutModel.from_pretrained(
-            "naver-clova-ix/donut-base-finetuned-cord-v2"
-        )
-        if torch.cuda.is_available():
-            self.model.half().to("cuda")
+# Iniciar servidor
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
 
-    def process_image(self, image_path: str, params: dict):
-        image = Image.open(image_path)
-        output = self.model.inference(
-            image=image,
-            prompt=f"<s_{params['document_type']}>"
-        )
-        return self._format_output(output)
+El servidor estará disponible en: `http://localhost:8000`
 
-    def _format_output(self, raw_output: dict) -> dict:
-        # Lógica para convertir la salida del modelo en tu estructura deseada
-        return {
-            "vendor": "empresa1",  # Ejemplo (debes adaptarlo)
-            "articles": [{
-                "name": "pinza pelacables",
-                "price": 3998,
-                "category": "electricidad"
-            }]
-        }
-3.3. Crear Endpoints (app/routes/document.py)
-python
-from fastapi import APIRouter, UploadFile, File, HTTPException
-from app.models.document import ProcessingParams, ProcessedDocument
-from app.services.ai_processor import DocumentProcessor
-import tempfile
-import os
+### 2. Documentación de la API
+Una vez iniciado el servidor, puedes acceder a:
+- **Swagger UI**: `http://localhost:8000/docs`
+- **ReDoc**: `http://localhost:8000/redoc`
 
-router = APIRouter()
-processor = DocumentProcessor()
+### 3. Procesar una imagen
 
-@router.post("/process", response_model=ProcessedDocument)
-async def process_document(
-    params: ProcessingParams,
-    file: UploadFile = File(...)
-):
-    try:
-        # Guardar imagen temporalmente
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-            tmp.write(await file.read())
-            tmp_path = tmp.name
-
-        # Procesar con IA
-        result = processor.process_image(tmp_path, params.dict())
-        
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)  # Limpieza
-3.4. Punto de Entrada (app/main.py)
-python
-from fastapi import FastAPI
-from app.routes.document import router as document_router
-
-app = FastAPI(title="Procesador de Facturas con IA")
-
-app.include_router(document_router, prefix="/api/v1")
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-📌 4. Ejecutar y Probar la API
-4.1. Iniciar el Servidor
-bash
-uvicorn app.main:app --reload
---reload: Recarga automática al hacer cambios (solo desarrollo).
-
-4.2. Probar con curl o Postman
-bash
+#### Usando curl:
+```bash
 curl -X POST "http://localhost:8000/api/v1/process" \
-  -H "accept: application/json" \
-  -F "file=@factura.png" \
-  -F "params={\"document_type\":\"invoice\"};type=application/json"
-📌 5. Despliegue Básico con Docker
-Objetivo: Empaquetar la aplicación para producción.
+  -H "Content-Type: multipart/form-data" \
+  -F "file=@ruta/a/tu/factura.jpg" \
+  -F "params={\"document_type\": \"invoice\", \"language\": \"es\"}"
+```
 
-5.1. Crear Dockerfile
-dockerfile
-FROM python:3.9-slim
+#### Usando Python:
+```python
+import requests
 
-WORKDIR /app
+url = "http://localhost:8000/api/v1/process"
+files = {"file": open("factura.jpg", "rb")}
+data = {"params": '{"document_type": "invoice", "language": "es"}'}
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+response = requests.post(url, files=files, data=data)
+result = response.json()
+print(result)
+```
 
-COPY . .
+#### Usando Postman:
+1. Método: `POST`
+2. URL: `http://localhost:8000/api/v1/process`
+3. Body: `form-data`
+   - `file`: Seleccionar archivo de imagen
+   - `params`: `{"document_type": "invoice", "language": "es"}`
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-5.2. Construir y Ejecutar
-bash
-docker build -t invoice-processor .
-docker run -p 8000:8000 invoice-processor
-📌 6. Buenas Prácticas Adicionales
-Variables de Entorno: Usa python-dotenv para configuraciones sensibles.
+## 📊 Formato de Respuesta
 
-Logging: Registra eventos importantes (logging module).
+La API devuelve un JSON estructurado con la siguiente información:
 
-Pruebas Unitarias: Usa pytest para probar tu lógica.
+```json
+{
+  "fecha": "17/6/2025",
+  "numero_presupuesto": "0003-00099458",
+  "cliente": "PROST CELIA",
+  "forma_pago": "CTA CTE",
+  "ubicacion": {
+    "localidad": "COLON",
+    "provincia": "GUATRACHE"
+  },
+  "productos": [
+    {
+      "codigo": "1105",
+      "cantidad": 6.00,
+      "descripcion": "ROSQUITAS BAÑADAS SOLITA X 300 G",
+      "precio_unitario": 1413.12,
+      "descuento": 0.0,
+      "total": 8478.74
+    }
+  ],
+  "totales": {
+    "subtotal": 362567.22,
+    "bonificacion": 0.00,
+    "total": 362567.22,
+    "monto_en_letras": "trescientos sesenta y dos mil quinientos sesenta y siete y 22 / 100"
+  },
+  "nota": "NO SE ACEPTAN DEVOLUCIONES DESPUÉS DE LAS 48 HORAS"
+}
+```
 
-Documentación: FastAPI genera automáticamente docs en /docs y /redoc.
+## ⚙️ Configuración
 
+### Parámetros de procesamiento:
+- `document_type`: Tipo de documento ("invoice" o "price_list")
+- `language`: Idioma del documento ("es" para español, "en" para inglés)
+- `expected_vendor`: Nombre esperado del vendedor (opcional)
+
+### Optimización de imágenes:
+- Las imágenes se redimensionan automáticamente a máximo 1200x800 píxeles
+- Se convierten a escala de grises para mejor rendimiento de OCR
+- Configuración optimizada de Tesseract para mejor precisión
+
+## 🔧 Solución de Problemas
+
+### Error: "Address already in use"
+```bash
+# Detener procesos de uvicorn
+pkill -f uvicorn
+
+# O usar un puerto diferente
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
+```
+
+### Error: "Tesseract not found"
+```bash
+# Verificar instalación de Tesseract
+which tesseract
+
+# Instalar si no está presente
+sudo apt install tesseract-ocr tesseract-ocr-spa
+```
+
+### Error: "Permission denied"
+```bash
+# Dar permisos de ejecución
+chmod +x venv/bin/activate
+```
+
+### Procesamiento lento
+- Las imágenes grandes pueden tardar más en procesarse
+- El sistema optimiza automáticamente las imágenes
+- Considera reducir el tamaño de las imágenes antes de enviarlas
+
+## 📁 Estructura del Proyecto
+
+```
+deskribe/
+├── app/
+│   ├── __init__.py
+│   ├── main.py              # Punto de entrada de FastAPI
+│   │   ├── __init__.py
+│   │   └── document.py      # Modelos de datos
+│   ├── services/
+│   │   ├── __init__.py
+│   │   └── ai_processor.py  # Procesador de OCR
+│   └── api/
+│       ├── __init__.py
+│       └── endpoints.py     # Endpoints de la API
+├── requirements.txt         # Dependencias de Python
+├── .gitignore              # Archivos a ignorar en Git
+└── README.md               # Este archivo
+```
+
+## 🤝 Contribuir
+
+1. Fork el proyecto
+2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abre un Pull Request
+
+## 📝 Licencia
+
+Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más detalles.
+
+## 📞 Soporte
+
+Si tienes problemas o preguntas:
+1. Revisa la documentación de la API en `/docs`
+2. Verifica los logs del servidor
+3. Asegúrate de que todas las dependencias estén instaladas correctamente
+
+## 🔄 Actualizaciones
+
+Para actualizar el proyecto:
+```bash
+git pull origin main
+pip install -r requirements.txt --upgrade
+```
+
+---
+
+**Deskribe** - Transformando facturas en datos estructurados con IA 🚀
