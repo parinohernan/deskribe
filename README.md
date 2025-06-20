@@ -1,4 +1,4 @@
-# Deskribe - API de Procesamiento de Facturas con IA
+# Deskribe - Imagen to JSON - API de Procesamiento de Facturas con IA
 
 Deskribe es una API desarrollada con FastAPI que utiliza OCR (Tesseract) para extraer y procesar información de facturas y presupuestos, convirtiendo imágenes en datos estructurados en formato JSON.
 
